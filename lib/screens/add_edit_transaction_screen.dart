@@ -38,7 +38,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
     _selectedCategory =
         transaction?.category ??
         AppConstants.categoriesFor(_selectedType).first;
-    _selectedDate = transaction?.date ?? DateTime.now();
+    _selectedDate = transaction?.date ?? _defaultDateForSelectedMonth();
     _amountController.text = transaction == null
         ? ''
         : transaction.amount.toStringAsFixed(0);
@@ -56,11 +56,14 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
 
   Future<void> _pickDate() async {
     final DateTime now = DateTime.now();
+    final DateTime initialDate = _selectedDate.isAfter(now)
+        ? now
+        : _selectedDate;
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
+      initialDate: initialDate,
       firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 5),
+      lastDate: now,
     );
 
     if (picked != null) {
@@ -69,6 +72,19 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
         _dateController.text = DateFormatter.formatDate(_selectedDate);
       });
     }
+  }
+
+  DateTime _defaultDateForSelectedMonth() {
+    final DateTime selectedMonth = context
+        .read<TransactionProvider>()
+        .selectedMonth;
+    final DateTime now = DateTime.now();
+
+    if (selectedMonth.year == now.year && selectedMonth.month == now.month) {
+      return now;
+    }
+
+    return DateTime(selectedMonth.year, selectedMonth.month);
   }
 
   Future<void> _submit() async {

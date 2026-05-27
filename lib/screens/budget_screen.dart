@@ -19,7 +19,7 @@ class BudgetScreen extends StatefulWidget {
 class _BudgetScreenState extends State<BudgetScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _amountController = TextEditingController();
-  bool _didPrefill = false;
+  String? _prefilledBudgetId;
 
   @override
   void dispose() {
@@ -35,7 +35,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     final double amount = double.tryParse(_amountController.text.trim()) ?? 0;
     final bool success = await context
         .read<BudgetProvider>()
-        .saveCurrentMonthBudget(amount);
+        .saveSelectedMonthBudget(amount);
 
     if (!mounted) {
       return;
@@ -56,11 +56,13 @@ class _BudgetScreenState extends State<BudgetScreen> {
     final BudgetProvider budgetProvider = context.watch<BudgetProvider>();
     final TransactionProvider transactionProvider = context
         .watch<TransactionProvider>();
+    final double selectedMonthExpense =
+        transactionProvider.selectedMonthExpense;
 
-    if (!_didPrefill && budgetProvider.currentBudget != null) {
-      _amountController.text = budgetProvider.currentBudget!.amount
-          .toStringAsFixed(0);
-      _didPrefill = true;
+    if (_prefilledBudgetId != budgetProvider.currentBudget?.id) {
+      _amountController.text =
+          budgetProvider.currentBudget?.amount.toStringAsFixed(0) ?? '';
+      _prefilledBudgetId = budgetProvider.currentBudget?.id;
     }
 
     return Scaffold(
@@ -83,7 +85,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Tháng ${DateFormatter.formatMonthYear(DateTime.now())}',
+                      'Tháng ${DateFormatter.formatMonthYear(transactionProvider.selectedMonth)}',
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -91,7 +93,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'Đã chi: ${CurrencyFormatter.format(transactionProvider.currentMonthExpense)}',
+                      'Đã chi: ${CurrencyFormatter.format(selectedMonthExpense)}',
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         color: AppColors.textSecondary,
@@ -99,14 +101,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      budgetProvider.budgetStatusMessage(
-                        transactionProvider.currentMonthExpense,
-                      ),
+                      budgetProvider.budgetStatusMessage(selectedMonthExpense),
                       style: TextStyle(
-                        color:
-                            budgetProvider.isOverBudget(
-                              transactionProvider.currentMonthExpense,
-                            )
+                        color: budgetProvider.isOverBudget(selectedMonthExpense)
                             ? AppColors.danger
                             : AppColors.success,
                         fontWeight: FontWeight.w700,

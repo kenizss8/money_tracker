@@ -11,8 +11,9 @@ import '../utils/date_formatter.dart';
 import '../widgets/budget_card.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/month_selector.dart';
 import '../widgets/summary_card.dart';
-import '../widgets/transaction_item.dart';
+import '../widgets/transaction_day_section.dart';
 import 'add_edit_transaction_screen.dart';
 import 'budget_screen.dart';
 
@@ -124,6 +125,11 @@ class HomeScreen extends StatelessWidget {
             BudgetProvider budgetProvider,
             Widget? child,
           ) {
+            final List<TransactionModel> recentTransactions =
+                transactionProvider.selectedMonthRecentTransactions;
+            final List<TransactionDayGroup> recentGroups =
+                transactionProvider.selectedMonthRecentTransactionGroups;
+
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
               children: <Widget>[
@@ -150,7 +156,7 @@ class HomeScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Tổng quan thu chi tháng ${DateFormatter.formatMonthYear(DateTime.now())}',
+                        'Tổng quan thu chi tháng ${DateFormatter.formatMonthYear(transactionProvider.selectedMonth)}',
                         style: const TextStyle(
                           color: Colors.white70,
                           height: 1.5,
@@ -167,6 +173,14 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 18),
+                MonthSelector(
+                  selectedMonth: transactionProvider.selectedMonth,
+                  onPrevious: transactionProvider.goToPreviousMonth,
+                  onNext: transactionProvider.goToNextMonth,
+                  onCurrentMonth: transactionProvider.resetToCurrentMonth,
+                  canGoNext: !transactionProvider.isViewingCurrentMonth,
+                ),
+                const SizedBox(height: 18),
                 GridView(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -178,27 +192,27 @@ class HomeScreen extends StatelessWidget {
                   children: <Widget>[
                     SummaryCard(
                       title: 'Tổng thu',
-                      subtitle: 'Tháng hiện tại',
+                      subtitle: 'Tháng đang xem',
                       value: CurrencyFormatter.format(
-                        transactionProvider.currentMonthIncome,
+                        transactionProvider.selectedMonthIncome,
                       ),
                       icon: Icons.arrow_downward_rounded,
                       color: AppColors.success,
                     ),
                     SummaryCard(
                       title: 'Tổng chi',
-                      subtitle: 'Tháng hiện tại',
+                      subtitle: 'Tháng đang xem',
                       value: CurrencyFormatter.format(
-                        transactionProvider.currentMonthExpense,
+                        transactionProvider.selectedMonthExpense,
                       ),
                       icon: Icons.arrow_upward_rounded,
                       color: AppColors.danger,
                     ),
                     SummaryCard(
                       title: 'Số dư',
-                      subtitle: 'Tháng hiện tại',
+                      subtitle: 'Tháng đang xem',
                       value: CurrencyFormatter.format(
-                        transactionProvider.currentMonthBalance,
+                        transactionProvider.selectedMonthBalance,
                       ),
                       icon: Icons.account_balance_wallet_rounded,
                       color: AppColors.secondary,
@@ -208,7 +222,7 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 18),
                 BudgetCard(
                   budget: budgetProvider.currentBudget,
-                  currentExpense: transactionProvider.currentMonthExpense,
+                  currentExpense: transactionProvider.selectedMonthExpense,
                   onTap: () => _openBudget(context),
                 ),
                 const SizedBox(height: 22),
@@ -224,7 +238,7 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${transactionProvider.recentTransactions.length} mục',
+                      '${recentTransactions.length} mục',
                       style: const TextStyle(color: AppColors.textSecondary),
                     ),
                   ],
@@ -236,7 +250,7 @@ class HomeScreen extends StatelessWidget {
                     padding: EdgeInsets.symmetric(vertical: 32),
                     child: Center(child: CircularProgressIndicator()),
                   )
-                else if (transactionProvider.recentTransactions.isEmpty)
+                else if (recentGroups.isEmpty)
                   const EmptyState(
                     icon: Icons.receipt_long_rounded,
                     title: 'Chưa có giao dịch nào',
@@ -244,11 +258,13 @@ class HomeScreen extends StatelessWidget {
                         'Hãy thêm giao dịch đầu tiên để bắt đầu theo dõi thu chi của bạn.',
                   )
                 else
-                  ...transactionProvider.recentTransactions.map(
-                    (TransactionModel transaction) => TransactionItem(
-                      transaction: transaction,
-                      onEdit: () => _openEditTransaction(context, transaction),
-                      onDelete: () => _deleteTransaction(context, transaction),
+                  ...recentGroups.map(
+                    (TransactionDayGroup group) => TransactionDaySection(
+                      group: group,
+                      onEdit: (TransactionModel transaction) =>
+                          _openEditTransaction(context, transaction),
+                      onDelete: (TransactionModel transaction) =>
+                          _deleteTransaction(context, transaction),
                     ),
                   ),
               ],

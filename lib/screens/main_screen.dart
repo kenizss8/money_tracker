@@ -19,6 +19,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  TransactionProvider? _boundTransactionProvider;
 
   final List<Widget> _pages = const <Widget>[
     HomeScreen(),
@@ -32,9 +33,36 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final String? uid = context.read<AuthProvider>().firebaseUser?.uid;
-      context.read<TransactionProvider>().bindUser(uid);
+      final TransactionProvider transactionProvider = context
+          .read<TransactionProvider>();
+      transactionProvider.bindUser(uid);
       context.read<BudgetProvider>().bindUser(uid);
+      context.read<BudgetProvider>().setSelectedMonth(
+        transactionProvider.selectedMonth,
+      );
+
+      _boundTransactionProvider = transactionProvider;
+      _boundTransactionProvider?.addListener(_syncBudgetMonth);
     });
+  }
+
+  void _syncBudgetMonth() {
+    if (!mounted) {
+      return;
+    }
+    final TransactionProvider? transactionProvider = _boundTransactionProvider;
+    if (transactionProvider == null) {
+      return;
+    }
+    context.read<BudgetProvider>().setSelectedMonth(
+      transactionProvider.selectedMonth,
+    );
+  }
+
+  @override
+  void dispose() {
+    _boundTransactionProvider?.removeListener(_syncBudgetMonth);
+    super.dispose();
   }
 
   String get _title {

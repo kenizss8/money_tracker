@@ -12,11 +12,13 @@ class TransactionItem extends StatelessWidget {
     required this.transaction,
     required this.onEdit,
     required this.onDelete,
+    this.showDate = true,
   });
 
   final TransactionModel transaction;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final bool showDate;
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +71,9 @@ class TransactionItem extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${AppConstants.transactionTypeLabel(transaction.type)} • ${DateFormatter.formatDate(transaction.date)}',
+                  showDate
+                      ? '${AppConstants.transactionTypeLabel(transaction.type)} • ${DateFormatter.formatDate(transaction.date)}'
+                      : AppConstants.transactionTypeLabel(transaction.type),
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,

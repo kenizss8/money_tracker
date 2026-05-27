@@ -79,6 +79,29 @@ class MonthlyExpensePoint {
   final double total;
 }
 
+class TransactionDayGroup {
+  const TransactionDayGroup({required this.date, required this.transactions});
+
+  final DateTime date;
+  final List<TransactionModel> transactions;
+
+  double get incomeTotal => transactions
+      .where((TransactionModel item) => item.type == 'income')
+      .fold<double>(
+        0,
+        (double sum, TransactionModel item) => sum + item.amount,
+      );
+
+  double get expenseTotal => transactions
+      .where((TransactionModel item) => item.type == 'expense')
+      .fold<double>(
+        0,
+        (double sum, TransactionModel item) => sum + item.amount,
+      );
+
+  double get balance => incomeTotal - expenseTotal;
+}
+
 DateTime _asDateTime(dynamic value) {
   if (value is Timestamp) {
     return value.toDate();

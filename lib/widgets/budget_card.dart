@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../models/budget_model.dart';
@@ -19,8 +21,12 @@ class BudgetCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool hasBudget = budget != null;
-    final double remaining = (budget?.amount ?? 0) - currentExpense;
-    final bool isOverBudget = hasBudget && currentExpense > budget!.amount;
+    final double budgetAmount = budget?.amount ?? 0;
+    final double remaining = budgetAmount - currentExpense;
+    final bool isOverBudget = hasBudget && currentExpense > budgetAmount;
+    final double progress = budgetAmount <= 0
+        ? 0
+        : math.min(currentExpense / budgetAmount, 1);
 
     return Material(
       color: Colors.transparent,
@@ -54,7 +60,7 @@ class BudgetCard extends StatelessWidget {
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
-                      'Ngân sách tháng này',
+                      'Ngân sách tháng đang xem',
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
@@ -67,7 +73,7 @@ class BudgetCard extends StatelessWidget {
               const SizedBox(height: 16),
               if (!hasBudget) ...<Widget>[
                 const Text(
-                  'Bạn chưa đặt ngân sách cho tháng hiện tại.',
+                  'Bạn chưa đặt ngân sách cho tháng đang xem.',
                   style: TextStyle(color: AppColors.textSecondary, height: 1.5),
                 ),
                 const SizedBox(height: 12),
@@ -84,7 +90,7 @@ class BudgetCard extends StatelessWidget {
                     Expanded(
                       child: _BudgetInfo(
                         title: 'Ngân sách',
-                        value: CurrencyFormatter.format(budget!.amount),
+                        value: CurrencyFormatter.format(budgetAmount),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -95,6 +101,16 @@ class BudgetCard extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    minHeight: 10,
+                    value: progress,
+                    backgroundColor: AppColors.border,
+                    color: isOverBudget ? AppColors.danger : AppColors.success,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Container(
@@ -108,7 +124,7 @@ class BudgetCard extends StatelessWidget {
                   ),
                   child: Text(
                     isOverBudget
-                        ? 'Bạn đã vượt ngân sách tháng này'
+                        ? 'Bạn đã vượt ngân sách ${CurrencyFormatter.format(remaining.abs())}'
                         : 'Bạn vẫn còn ${CurrencyFormatter.format(remaining)} để chi trong tháng này',
                     style: TextStyle(
                       color: isOverBudget

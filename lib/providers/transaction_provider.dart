@@ -14,19 +14,23 @@ class TransactionProvider extends ChangeNotifier {
   StreamSubscription<List<TransactionModel>>? _subscription;
   String? _activeUserId;
   List<TransactionModel> _transactions = <TransactionModel>[];
+  DateTime _selectedMonth = _monthStart(DateTime.now());
   String _selectedFilter = AppConstants.filterAll;
-  bool _showCurrentMonthOnly = false;
+  bool _showSelectedMonthOnly = true;
   bool _isLoading = false;
   bool _isSubmitting = false;
   String? _errorMessage;
 
   List<TransactionModel> get transactions =>
       List<TransactionModel>.unmodifiable(_transactions);
+  DateTime get selectedMonth => _selectedMonth;
   String get selectedFilter => _selectedFilter;
-  bool get showCurrentMonthOnly => _showCurrentMonthOnly;
+  bool get showCurrentMonthOnly => _showSelectedMonthOnly;
   bool get isLoading => _isLoading;
   bool get isSubmitting => _isSubmitting;
   String? get errorMessage => _errorMessage;
+  bool get isViewingCurrentMonth =>
+      _isSameMonth(_selectedMonth, DateTime.now());
 
   void bindUser(String? userId) {
     if (_activeUserId == userId) {
@@ -73,7 +77,36 @@ class TransactionProvider extends ChangeNotifier {
   }
 
   void toggleCurrentMonthOnly(bool value) {
-    _showCurrentMonthOnly = value;
+    _showSelectedMonthOnly = value;
+    notifyListeners();
+  }
+
+  void goToPreviousMonth() {
+    _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
+    notifyListeners();
+  }
+
+  void goToNextMonth() {
+    final DateTime nextMonth = DateTime(
+      _selectedMonth.year,
+      _selectedMonth.month + 1,
+    );
+
+    if (_isAfterCurrentMonth(nextMonth)) {
+      return;
+    }
+
+    _selectedMonth = nextMonth;
+    notifyListeners();
+  }
+
+  void resetToCurrentMonth() {
+    final DateTime currentMonth = _monthStart(DateTime.now());
+    if (_isSameMonth(_selectedMonth, currentMonth)) {
+      return;
+    }
+
+    _selectedMonth = currentMonth;
     notifyListeners();
   }
 
@@ -91,15 +124,19 @@ class TransactionProvider extends ChangeNotifier {
       );
     }
 
-    if (_showCurrentMonthOnly) {
+    if (_showSelectedMonthOnly) {
       items = items.where(
-        (TransactionModel item) => _isSameMonth(item.date, DateTime.now()),
+        (TransactionModel item) => _isSameMonth(item.date, _selectedMonth),
       );
     }
 
     return items.toList()..sort(
       (TransactionModel a, TransactionModel b) => b.date.compareTo(a.date),
     );
+  }
+
+  List<TransactionDayGroup> get filteredTransactionGroups {
+    return _groupByDate(filteredTransactions);
   }
 
   List<TransactionModel> get currentMonthTransactions {
@@ -113,8 +150,27 @@ class TransactionProvider extends ChangeNotifier {
       );
   }
 
+  List<TransactionModel> get selectedMonthTransactions {
+    return _transactions
+        .where(
+          (TransactionModel item) => _isSameMonth(item.date, _selectedMonth),
+        )
+        .toList()
+      ..sort(
+        (TransactionModel a, TransactionModel b) => b.date.compareTo(a.date),
+      );
+  }
+
   List<TransactionModel> get recentTransactions {
     return _transactions.take(5).toList();
+  }
+
+  List<TransactionModel> get selectedMonthRecentTransactions {
+    return selectedMonthTransactions.take(5).toList();
+  }
+
+  List<TransactionDayGroup> get selectedMonthRecentTransactionGroups {
+    return _groupByDate(selectedMonthRecentTransactions);
   }
 
   double get totalIncome => _sumByType(_transactions, AppConstants.incomeType);
@@ -129,35 +185,29 @@ class TransactionProvider extends ChangeNotifier {
   double get currentMonthBalance => currentMonthIncome - currentMonthExpense;
   int get currentMonthTransactionCount => currentMonthTransactions.length;
 
+  double get selectedMonthIncome =>
+      _sumByType(selectedMonthTransactions, AppConstants.incomeType);
+  double get selectedMonthExpense =>
+      _sumByType(selectedMonthTransactions, AppConstants.expenseType);
+  double get selectedMonthBalance => selectedMonthIncome - selectedMonthExpense;
+  int get selectedMonthTransactionCount => selectedMonthTransactions.length;
+
   Map<String, double> get expenseByCategoryThisMonth {
-    final Map<String, double> grouped = <String, double>{};
+    return _expenseByCategory(currentMonthTransactions);
+  }
 
-    for (final TransactionModel transaction in currentMonthTransactions) {
-      if (transaction.type != AppConstants.expenseType) {
-        continue;
-      }
-      grouped.update(
-        transaction.category,
-        (double value) => value + transaction.amount,
-        ifAbsent: () => transaction.amount,
-      );
-    }
-
-    final List<MapEntry<String, double>> entries = grouped.entries.toList()
-      ..sort(
-        (MapEntry<String, double> a, MapEntry<String, double> b) =>
-            b.value.compareTo(a.value),
-      );
-
-    return Map<String, double>.fromEntries(entries);
+  Map<String, double> get expenseByCategorySelectedMonth {
+    return _expenseByCategory(selectedMonthTransactions);
   }
 
   List<MonthlyExpensePoint> get lastSixMonthsExpense {
-    final DateTime now = DateTime.now();
     final List<MonthlyExpensePoint> points = <MonthlyExpensePoint>[];
 
     for (int i = 5; i >= 0; i--) {
-      final DateTime month = DateTime(now.year, now.month - i, 1);
+      final DateTime month = DateTime(
+        _selectedMonth.year,
+        _selectedMonth.month - i,
+      );
       double total = 0;
 
       for (final TransactionModel transaction in _transactions) {
@@ -174,17 +224,17 @@ class TransactionProvider extends ChangeNotifier {
   }
 
   String get topExpenseCategory {
-    if (expenseByCategoryThisMonth.isEmpty) {
+    if (expenseByCategorySelectedMonth.isEmpty) {
       return 'Chưa có dữ liệu';
     }
-    return expenseByCategoryThisMonth.entries.first.key;
+    return expenseByCategorySelectedMonth.entries.first.key;
   }
 
   String get statisticInsight {
-    if (expenseByCategoryThisMonth.isEmpty) {
-      return 'Bạn chưa có dữ liệu chi tiêu trong tháng này.';
+    if (expenseByCategorySelectedMonth.isEmpty) {
+      return 'Bạn chưa có dữ liệu chi tiêu trong tháng đang xem.';
     }
-    return 'Bạn chi nhiều nhất cho $topExpenseCategory trong tháng này.';
+    return 'Bạn chi nhiều nhất cho $topExpenseCategory trong tháng đang xem.';
   }
 
   Future<bool> addTransaction(TransactionModel transaction) async {
@@ -281,8 +331,78 @@ class TransactionProvider extends ChangeNotifier {
         );
   }
 
+  Map<String, double> _expenseByCategory(List<TransactionModel> items) {
+    final Map<String, double> grouped = <String, double>{};
+
+    for (final TransactionModel transaction in items) {
+      if (transaction.type != AppConstants.expenseType) {
+        continue;
+      }
+      grouped.update(
+        transaction.category,
+        (double value) => value + transaction.amount,
+        ifAbsent: () => transaction.amount,
+      );
+    }
+
+    final List<MapEntry<String, double>> entries = grouped.entries.toList()
+      ..sort(
+        (MapEntry<String, double> a, MapEntry<String, double> b) =>
+            b.value.compareTo(a.value),
+      );
+
+    return Map<String, double>.fromEntries(entries);
+  }
+
+  List<TransactionDayGroup> _groupByDate(List<TransactionModel> items) {
+    final List<TransactionModel> sortedItems =
+        List<TransactionModel>.from(items)..sort(
+          (TransactionModel a, TransactionModel b) => b.date.compareTo(a.date),
+        );
+    final List<TransactionDayGroup> groups = <TransactionDayGroup>[];
+
+    for (final TransactionModel transaction in sortedItems) {
+      final DateTime date = _dayStart(transaction.date);
+
+      if (groups.isEmpty || !_isSameDay(groups.last.date, date)) {
+        groups.add(
+          TransactionDayGroup(
+            date: date,
+            transactions: <TransactionModel>[transaction],
+          ),
+        );
+        continue;
+      }
+
+      final TransactionDayGroup lastGroup = groups.removeLast();
+      groups.add(
+        TransactionDayGroup(
+          date: lastGroup.date,
+          transactions: <TransactionModel>[
+            ...lastGroup.transactions,
+            transaction,
+          ],
+        ),
+      );
+    }
+
+    return groups;
+  }
+
   bool _isSameMonth(DateTime left, DateTime right) {
     return left.year == right.year && left.month == right.month;
+  }
+
+  bool _isSameDay(DateTime left, DateTime right) {
+    return left.year == right.year &&
+        left.month == right.month &&
+        left.day == right.day;
+  }
+
+  bool _isAfterCurrentMonth(DateTime month) {
+    final DateTime currentMonth = _monthStart(DateTime.now());
+    return month.year > currentMonth.year ||
+        (month.year == currentMonth.year && month.month > currentMonth.month);
   }
 
   @override
@@ -290,4 +410,12 @@ class TransactionProvider extends ChangeNotifier {
     _subscription?.cancel();
     super.dispose();
   }
+}
+
+DateTime _monthStart(DateTime date) {
+  return DateTime(date.year, date.month);
+}
+
+DateTime _dayStart(DateTime date) {
+  return DateTime(date.year, date.month, date.day);
 }
