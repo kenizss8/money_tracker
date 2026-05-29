@@ -37,6 +37,9 @@ migrate_working_dir/
 android/app/google-services.json
 android/local.properties
 
+# Local notes/report drafts
+*.md
+
 # Symbolication related
 app.*.symbols
 
