@@ -9,15 +9,20 @@ import '../utils/app_constants.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/date_formatter.dart';
 import '../widgets/custom_button.dart';
-import 'budget_screen.dart';
+import 'budget_editor_screen.dart';
 import 'login_screen.dart';
+
+const Color _accountCard = Color(0xFF1C1C1E);
+const Color _accountBorder = Color(0xFF34343A);
+const Color _accountText = Color(0xFFFFFFFF);
+const Color _accountTextMuted = Color(0xFFA1A1AA);
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   Future<void> _openBudgetScreen(BuildContext context) async {
     final String? message = await Navigator.of(context).push<String>(
-      MaterialPageRoute<String>(builder: (_) => const BudgetScreen()),
+      MaterialPageRoute<String>(builder: (_) => const BudgetEditorScreen()),
     );
 
     if (!context.mounted || message == null) {
@@ -106,114 +111,138 @@ class SettingsScreen extends StatelessWidget {
           ) {
             final DateTime? createdAt = authProvider.userModel?.createdAt;
 
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
-              children: <Widget>[
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      const Text(
-                        'Thông tin cá nhân',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _InfoRow(
-                        icon: Icons.person_outline_rounded,
-                        label: 'Họ tên',
-                        value:
-                            authProvider.userModel?.name ?? 'Chưa có dữ liệu',
-                      ),
-                      _InfoRow(
-                        icon: Icons.email_outlined,
-                        label: 'Email',
-                        value:
-                            authProvider.userModel?.email ??
-                            authProvider.firebaseUser?.email ??
-                            'Chưa có dữ liệu',
-                      ),
-                      _InfoRow(
-                        icon: Icons.calendar_today_outlined,
-                        label: 'Ngày tạo',
-                        value: createdAt == null
-                            ? 'Chưa có dữ liệu'
-                            : DateFormatter.formatDate(createdAt),
-                      ),
-                    ],
+            return SafeArea(
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  outlinedButtonTheme: OutlinedButtonThemeData(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: _accountBorder),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      const Text(
-                        'Thông tin ứng dụng',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
+                  children: <Widget>[
+                    const Text(
+                      'Tài khoản',
+                      style: TextStyle(
+                        color: _accountText,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
                       ),
-                      const SizedBox(height: 16),
-                      const _InfoRow(
-                        icon: Icons.apps_rounded,
-                        label: 'Tên app',
-                        value: AppConstants.appName,
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: _accountCard,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: _accountBorder),
                       ),
-                      _InfoRow(
-                        icon: Icons.account_balance_wallet_outlined,
-                        label: 'Ngân sách tháng',
-                        value: budgetProvider.currentBudget == null
-                            ? 'Chưa thiết lập'
-                            : CurrencyFormatter.format(
-                                budgetProvider.currentBudget!.amount,
-                              ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const Text(
+                            'Thông tin cá nhân',
+                            style: TextStyle(
+                              color: _accountText,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _InfoRow(
+                            icon: Icons.person_outline_rounded,
+                            label: 'Họ tên',
+                            value:
+                                authProvider.userModel?.name ??
+                                'Chưa có dữ liệu',
+                          ),
+                          _InfoRow(
+                            icon: Icons.email_outlined,
+                            label: 'Email',
+                            value:
+                                authProvider.userModel?.email ??
+                                authProvider.firebaseUser?.email ??
+                                'Chưa có dữ liệu',
+                          ),
+                          _InfoRow(
+                            icon: Icons.calendar_today_outlined,
+                            label: 'Ngày tạo',
+                            value: createdAt == null
+                                ? 'Chưa có dữ liệu'
+                                : DateFormatter.formatDate(createdAt),
+                          ),
+                        ],
                       ),
-                      _InfoRow(
-                        icon: Icons.receipt_rounded,
-                        label: 'Số giao dịch',
-                        value: transactionProvider.transactions.length
-                            .toString(),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: _accountCard,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: _accountBorder),
                       ),
-                    ],
-                  ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const Text(
+                            'Thông tin ứng dụng',
+                            style: TextStyle(
+                              color: _accountText,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const _InfoRow(
+                            icon: Icons.apps_rounded,
+                            label: 'Tên app',
+                            value: AppConstants.appName,
+                          ),
+                          _InfoRow(
+                            icon: Icons.account_balance_wallet_outlined,
+                            label: 'Ngân sách tháng',
+                            value: budgetProvider.currentBudget == null
+                                ? 'Chưa thiết lập'
+                                : CurrencyFormatter.format(
+                                    budgetProvider.currentBudget!.amount,
+                                  ),
+                          ),
+                          _InfoRow(
+                            icon: Icons.receipt_rounded,
+                            label: 'Số giao dịch',
+                            value: transactionProvider.transactions.length
+                                .toString(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    CustomButton(
+                      label: 'Đặt hoặc cập nhật ngân sách',
+                      icon: Icons.savings_rounded,
+                      onPressed: () => _openBudgetScreen(context),
+                    ),
+                    const SizedBox(height: 12),
+                    CustomButton(
+                      label: 'Xóa toàn bộ giao dịch',
+                      icon: Icons.delete_sweep_rounded,
+                      isOutlined: true,
+                      onPressed: () => _deleteAllTransactions(context),
+                    ),
+                    const SizedBox(height: 12),
+                    CustomButton(
+                      label: 'Đăng xuất',
+                      icon: Icons.logout_rounded,
+                      isOutlined: true,
+                      onPressed: () => _logout(context),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 20),
-                CustomButton(
-                  label: 'Đặt hoặc cập nhật ngân sách',
-                  icon: Icons.savings_rounded,
-                  onPressed: () => _openBudgetScreen(context),
-                ),
-                const SizedBox(height: 12),
-                CustomButton(
-                  label: 'Xóa toàn bộ giao dịch',
-                  icon: Icons.delete_sweep_rounded,
-                  isOutlined: true,
-                  onPressed: () => _deleteAllTransactions(context),
-                ),
-                const SizedBox(height: 12),
-                CustomButton(
-                  label: 'Đăng xuất',
-                  icon: Icons.logout_rounded,
-                  isOutlined: true,
-                  onPressed: () => _logout(context),
-                ),
-              ],
+              ),
             );
           },
     );
@@ -254,7 +283,7 @@ class _InfoRow extends StatelessWidget {
                 Text(
                   label,
                   style: const TextStyle(
-                    color: AppColors.textSecondary,
+                    color: _accountTextMuted,
                     fontSize: 12,
                   ),
                 ),
@@ -262,6 +291,7 @@ class _InfoRow extends StatelessWidget {
                 Text(
                   value,
                   style: const TextStyle(
+                    color: _accountText,
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
                   ),

@@ -1,34 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/transaction_model.dart';
 import '../providers/transaction_provider.dart';
-import '../utils/app_colors.dart';
 import '../utils/app_constants.dart';
-import '../utils/currency_formatter.dart';
-import '../utils/date_formatter.dart';
-import '../widgets/empty_state.dart';
-import '../widgets/month_selector.dart';
-import '../widgets/transaction_item.dart';
 import 'add_edit_transaction_screen.dart';
 
-class TransactionListScreen extends StatefulWidget {
-  const TransactionListScreen({super.key});
+const Color _ledgerBackground = Color(0xFF000000);
+const Color _ledgerCard = Color(0xFF1C1C1E);
+const Color _ledgerCardSoft = Color(0xFF2C2C2E);
+const Color _ledgerText = Color(0xFFFFFFFF);
+const Color _ledgerTextMuted = Color(0xFFA1A1AA);
+const Color _ledgerDivider = Color(0xFF34343A);
+const Color _ledgerGreen = Color(0xFF34D399);
+const Color _ledgerBlue = Color(0xFF60A5FA);
+const Color _ledgerRed = Color(0xFFFB7185);
 
-  @override
-  State<TransactionListScreen> createState() => _TransactionListScreenState();
-}
+final NumberFormat _ledgerMoneyFormat = NumberFormat.currency(
+  locale: 'vi_VN',
+  symbol: 'đ',
+  decimalDigits: 2,
+);
 
-class _TransactionListScreenState extends State<TransactionListScreen> {
-  DateTime? _selectedDay;
+class TransactionLedgerScreen extends StatelessWidget {
+  const TransactionLedgerScreen({super.key});
 
   Future<void> _openEditTransaction(
     BuildContext context,
-    TransactionModel transaction,
+    LedgerTransaction transaction,
   ) async {
     final String? message = await Navigator.of(context).push<String>(
       MaterialPageRoute<String>(
-        builder: (_) => AddEditTransactionScreen(transaction: transaction),
+        builder: (_) =>
+            AddEditTransactionScreen(transaction: transaction.source),
       ),
     );
 
@@ -43,7 +48,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
 
   Future<void> _deleteTransaction(
     BuildContext context,
-    TransactionModel transaction,
+    LedgerTransaction transaction,
   ) async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
@@ -86,372 +91,155 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     );
   }
 
-  void _runWithDayReset(VoidCallback action) {
-    setState(() {
-      _selectedDay = null;
-    });
-    action();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Consumer<TransactionProvider>(
-      builder: (BuildContext context, TransactionProvider provider, Widget? child) {
-        final List<TransactionModel> monthTransactions = _filterByType(
-          provider.selectedMonthTransactions,
-          provider,
-        );
-        final List<DateTime> days = _daysInMonth(provider.selectedMonth);
-        final DateTime selectedDay = _resolveSelectedDay(
-          provider.selectedMonth,
-          monthTransactions,
-        );
-        final List<TransactionModel> dayTransactions = _transactionsForDay(
-          monthTransactions,
-          selectedDay,
-        );
-        final double dayIncome = _sumByType(
-          dayTransactions,
-          AppConstants.incomeType,
-        );
-        final double dayExpense = _sumByType(
-          dayTransactions,
-          AppConstants.expenseType,
-        );
+    return Scaffold(
+      backgroundColor: _ledgerBackground,
+      body: SafeArea(
+        child: Consumer<TransactionProvider>(
+          builder:
+              (
+                BuildContext context,
+                TransactionProvider provider,
+                Widget? child,
+              ) {
+                final DateTime selectedMonth = _monthStart(
+                  provider.selectedMonth,
+                );
+                final List<TransactionModel> allTransactions =
+                    provider.transactions;
+                final List<TransactionModel> periodTransactions =
+                    _transactionsForMonth(allTransactions, selectedMonth);
+                final List<LedgerDayGroup> dayGroups = _buildDayGroups(
+                  periodTransactions,
+                );
+                final _LedgerPeriodSummary periodSummary = _buildPeriodSummary(
+                  allTransactions,
+                  selectedMonth,
+                );
+                final List<LedgerPeriodTabData> tabs = _buildPeriodTabs(
+                  allTransactions,
+                  selectedMonth,
+                );
 
-        return Column(
-          children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  MonthSelector(
-                    selectedMonth: provider.selectedMonth,
-                    onPrevious: () =>
-                        _runWithDayReset(provider.goToPreviousMonth),
-                    onNext: () => _runWithDayReset(provider.goToNextMonth),
-                    onCurrentMonth: () =>
-                        _runWithDayReset(provider.resetToCurrentMonth),
-                    canGoNext: !provider.isViewingCurrentMonth,
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children:
-                        <String>[
-                          AppConstants.filterAll,
-                          AppConstants.filterIncome,
-                          AppConstants.filterExpense,
-                        ].map((String filter) {
-                          return ChoiceChip(
-                            label: Text(AppConstants.filterLabel(filter)),
-                            selected: provider.selectedFilter == filter,
-                            onSelected: (_) => _runWithDayReset(
-                              () => provider.setFilter(filter),
+                return CustomScrollView(
+                  slivers: <Widget>[
+                    const SliverToBoxAdapter(child: LedgerTopBar()),
+                    SliverToBoxAdapter(
+                      child: LedgerBalanceSummary(
+                        balance: periodSummary.endingBalance,
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: LedgerTimeTabs(
+                        tabs: tabs,
+                        selectedMonth: selectedMonth,
+                        onMonthSelected: provider.setSelectedMonth,
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: LedgerPeriodSummaryCard(
+                        startingBalance: periodSummary.startingBalance,
+                        endingBalance: periodSummary.endingBalance,
+                        periodTotal: periodSummary.periodTotal,
+                      ),
+                    ),
+                    if (provider.isLoading && allTransactions.isEmpty)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 48),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: _ledgerGreen,
                             ),
-                          );
-                        }).toList(),
-                  ),
-                  const SizedBox(height: 12),
-                  _DayStripSelector(
-                    days: days,
-                    selectedDay: selectedDay,
-                    transactions: monthTransactions,
-                    onSelected: (DateTime day) {
-                      setState(() {
-                        _selectedDay = day;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: provider.isLoading && provider.transactions.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : dayTransactions.isEmpty
-                  ? ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-                      children: <Widget>[
-                        _SelectedDaySummary(
-                          date: selectedDay,
-                          income: dayIncome,
-                          expense: dayExpense,
-                        ),
-                        const SizedBox(height: 12),
-                        const EmptyState(
-                          icon: Icons.event_busy_rounded,
-                          title: 'Ngày này chưa có giao dịch',
-                          message:
-                              'Hãy chọn ngày khác hoặc thêm giao dịch mới cho ngày đang chọn.',
-                        ),
-                      ],
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-                      children: <Widget>[
-                        _SelectedDaySummary(
-                          date: selectedDay,
-                          income: dayIncome,
-                          expense: dayExpense,
-                        ),
-                        const SizedBox(height: 12),
-                        ...dayTransactions.map(
-                          (TransactionModel transaction) => TransactionItem(
-                            transaction: transaction,
-                            showDate: false,
-                            onEdit: () =>
-                                _openEditTransaction(context, transaction),
-                            onDelete: () =>
-                                _deleteTransaction(context, transaction),
                           ),
                         ),
-                      ],
-                    ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  DateTime _resolveSelectedDay(
-    DateTime selectedMonth,
-    List<TransactionModel> transactions,
-  ) {
-    final DateTime? selectedDay = _selectedDay;
-    if (selectedDay != null &&
-        selectedDay.year == selectedMonth.year &&
-        selectedDay.month == selectedMonth.month) {
-      return _dayStart(selectedDay);
-    }
-
-    if (transactions.isNotEmpty) {
-      return _dayStart(transactions.first.date);
-    }
-
-    final DateTime now = DateTime.now();
-    if (now.year == selectedMonth.year && now.month == selectedMonth.month) {
-      return _dayStart(now);
-    }
-
-    return DateTime(selectedMonth.year, selectedMonth.month);
-  }
-}
-
-class _DayStripSelector extends StatefulWidget {
-  const _DayStripSelector({
-    required this.days,
-    required this.selectedDay,
-    required this.transactions,
-    required this.onSelected,
-  });
-
-  final List<DateTime> days;
-  final DateTime selectedDay;
-  final List<TransactionModel> transactions;
-  final ValueChanged<DateTime> onSelected;
-
-  @override
-  State<_DayStripSelector> createState() => _DayStripSelectorState();
-}
-
-class _DayStripSelectorState extends State<_DayStripSelector> {
-  static const double _pillWidth = 76;
-  static const double _separatorWidth = 10;
-
-  late final ScrollController _scrollController;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController = ScrollController();
-    _scheduleScrollToSelected(animate: false);
-  }
-
-  @override
-  void didUpdateWidget(covariant _DayStripSelector oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final bool selectedDayChanged = !_isSameDay(
-      oldWidget.selectedDay,
-      widget.selectedDay,
-    );
-    final bool daysChanged =
-        oldWidget.days.length != widget.days.length ||
-        oldWidget.days.firstOrNull != widget.days.firstOrNull ||
-        oldWidget.days.lastOrNull != widget.days.lastOrNull;
-
-    if (selectedDayChanged || daysChanged) {
-      _scheduleScrollToSelected();
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _scheduleScrollToSelected({bool animate = true}) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) {
-        return;
-      }
-
-      final int selectedIndex = widget.days.indexWhere(
-        (DateTime day) => _isSameDay(day, widget.selectedDay),
-      );
-      if (selectedIndex < 0) {
-        return;
-      }
-
-      final double viewportWidth = _scrollController.position.viewportDimension;
-      final double rawOffset =
-          selectedIndex * (_pillWidth + _separatorWidth) -
-          (viewportWidth - _pillWidth) / 2;
-      final double targetOffset = rawOffset.clamp(
-        0,
-        _scrollController.position.maxScrollExtent,
-      );
-
-      if (animate) {
-        _scrollController.animateTo(
-          targetOffset,
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOutCubic,
-        );
-      } else {
-        _scrollController.jumpTo(targetOffset);
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 108,
-      child: ListView.separated(
-        controller: _scrollController,
-        scrollDirection: Axis.horizontal,
-        itemCount: widget.days.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (BuildContext context, int index) {
-          final DateTime day = widget.days[index];
-          final bool selected = _isSameDay(day, widget.selectedDay);
-          final List<TransactionModel> dayTransactions = _transactionsForDay(
-            widget.transactions,
-            day,
-          );
-          final bool hasTransactions = dayTransactions.isNotEmpty;
-          final double expense = _sumByType(
-            dayTransactions,
-            AppConstants.expenseType,
-          );
-
-          return _DayPill(
-            day: day,
-            selected: selected,
-            hasTransactions: hasTransactions,
-            expense: expense,
-            onTap: () => widget.onSelected(day),
-          );
-        },
+                      )
+                    else
+                      LedgerTransactionList(
+                        groups: dayGroups,
+                        selectedMonth: selectedMonth,
+                        onTransactionTap: (LedgerTransaction transaction) {
+                          _openEditTransaction(context, transaction);
+                        },
+                        onTransactionLongPress:
+                            (LedgerTransaction transaction) {
+                              _deleteTransaction(context, transaction);
+                            },
+                      ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 156)),
+                  ],
+                );
+              },
+        ),
       ),
     );
   }
 }
 
-class _DayPill extends StatelessWidget {
-  const _DayPill({
-    required this.day,
-    required this.selected,
-    required this.hasTransactions,
-    required this.expense,
-    required this.onTap,
-  });
+class LedgerTopBar extends StatelessWidget {
+  const LedgerTopBar({super.key});
 
-  final DateTime day;
-  final bool selected;
-  final bool hasTransactions;
-  final double expense;
-  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+      child: Row(
+        children: <Widget>[
+          _LedgerIconButton(
+            icon: Icons.question_mark_rounded,
+            onPressed: () {},
+          ),
+          Expanded(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 180),
+                child: const AccountSelectorPill(),
+              ),
+            ),
+          ),
+          const _LedgerSearchMenuPill(),
+        ],
+      ),
+    );
+  }
+}
+
+class AccountSelectorPill extends StatelessWidget {
+  const AccountSelectorPill({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent,
+      color: _ledgerCard,
+      borderRadius: BorderRadius.circular(999),
       child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          width: 76,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.primary : Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: selected ? AppColors.primary : AppColors.border,
-            ),
-            boxShadow: selected
-                ? <BoxShadow>[
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.22),
-                      blurRadius: 16,
-                      offset: const Offset(0, 8),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+        borderRadius: BorderRadius.circular(999),
+        onTap: () {},
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text(
-                DateFormatter.formatWeekdayShort(day),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: selected ? Colors.white70 : AppColors.textSecondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                day.day.toString(),
-                style: TextStyle(
-                  color: selected ? Colors.white : AppColors.textPrimary,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 5),
-              if (hasTransactions)
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: selected ? Colors.white : AppColors.primary,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                )
-              else
-                const SizedBox(height: 8),
-              if (expense > 0) ...<Widget>[
-                const SizedBox(height: 3),
-                Text(
-                  '${(expense / 1000).round()}K',
+              Icon(Icons.public_rounded, color: _ledgerText, size: 19),
+              SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'Tổng cộng',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: selected ? Colors.white70 : AppColors.danger,
-                    fontSize: 10,
+                    color: _ledgerText,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-              ],
+              ),
+              SizedBox(width: 6),
+              Icon(
+                Icons.unfold_more_rounded,
+                color: _ledgerTextMuted,
+                size: 18,
+              ),
             ],
           ),
         ),
@@ -460,92 +248,37 @@ class _DayPill extends StatelessWidget {
   }
 }
 
-class _SelectedDaySummary extends StatelessWidget {
-  const _SelectedDaySummary({
-    required this.date,
-    required this.income,
-    required this.expense,
-  });
+class LedgerBalanceSummary extends StatelessWidget {
+  const LedgerBalanceSummary({super.key, required this.balance});
 
-  final DateTime date;
-  final double income;
-  final double expense;
+  final double balance;
 
   @override
   Widget build(BuildContext context) {
-    final double balance = income - expense;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  Icons.calendar_today_rounded,
-                  color: AppColors.primary,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      DateFormatter.formatDayHeader(date),
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      DateFormatter.formatDate(date),
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          const Text(
+            'Số dư',
+            style: TextStyle(
+              color: _ledgerTextMuted,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              _SummaryPill(
-                label: 'Thu',
-                value: '+${CurrencyFormatter.format(income)}',
-                color: AppColors.success,
+          const SizedBox(height: 10),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              _formatLedgerMoney(balance),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _ledgerText,
+                fontSize: 34,
+                fontWeight: FontWeight.w900,
               ),
-              _SummaryPill(
-                label: 'Chi',
-                value: '-${CurrencyFormatter.format(expense)}',
-                color: AppColors.danger,
-              ),
-              _SummaryPill(
-                label: 'Còn lại',
-                value: CurrencyFormatter.format(balance),
-                color: balance >= 0 ? AppColors.success : AppColors.danger,
-              ),
-            ],
+            ),
           ),
         ],
       ),
@@ -553,88 +286,837 @@ class _SelectedDaySummary extends StatelessWidget {
   }
 }
 
-class _SummaryPill extends StatelessWidget {
-  const _SummaryPill({
-    required this.label,
-    required this.value,
-    required this.color,
+class LedgerTimeTabs extends StatelessWidget {
+  const LedgerTimeTabs({
+    super.key,
+    required this.tabs,
+    required this.selectedMonth,
+    required this.onMonthSelected,
   });
 
-  final String label;
-  final String value;
-  final Color color;
+  final List<LedgerPeriodTabData> tabs;
+  final DateTime selectedMonth;
+  final ValueChanged<DateTime> onMonthSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: tabs.map((LedgerPeriodTabData tab) {
+          final bool selected =
+              tab.month != null && _isSameMonth(tab.month!, selectedMonth);
+          final bool enabled = tab.enabled && tab.month != null;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 24),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: enabled ? () => onMonthSelected(tab.month!) : null,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    tab.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected
+                          ? _ledgerText
+                          : enabled
+                          ? _ledgerTextMuted
+                          : _ledgerTextMuted.withValues(alpha: 0.42),
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: selected ? 34 : 0,
+                    height: 2,
+                    decoration: BoxDecoration(
+                      color: _ledgerText,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class LedgerPeriodSummaryCard extends StatelessWidget {
+  const LedgerPeriodSummaryCard({
+    super.key,
+    required this.startingBalance,
+    required this.endingBalance,
+    required this.periodTotal,
+  });
+
+  final double startingBalance;
+  final double endingBalance;
+  final double periodTotal;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
+        color: _ledgerCard,
+        borderRadius: BorderRadius.circular(24),
       ),
-      child: Text(
-        '$label: $value',
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          _LedgerSummaryRow(
+            label: 'Số dư đầu',
+            value: _formatLedgerMoney(startingBalance, signed: true),
+          ),
+          const SizedBox(height: 14),
+          _LedgerSummaryRow(
+            label: 'Số dư cuối',
+            value: _formatLedgerMoney(endingBalance, signed: true),
+          ),
+          const SizedBox(height: 10),
+          const Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              width: 132,
+              child: Divider(color: _ledgerDivider, height: 24),
+            ),
+          ),
+          Row(
+            children: <Widget>[
+              const Spacer(),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    _formatLedgerMoney(periodTotal, signed: true),
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      color: _ledgerText,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          Center(
+            child: TextButton(
+              onPressed: () {},
+              child: const Text(
+                'Xem báo cáo cho giai đoạn này',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _ledgerGreen,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LedgerTransactionList extends StatelessWidget {
+  const LedgerTransactionList({
+    super.key,
+    required this.groups,
+    required this.selectedMonth,
+    this.onTransactionTap,
+    this.onTransactionLongPress,
+  });
+
+  final List<LedgerDayGroup> groups;
+  final DateTime selectedMonth;
+  final ValueChanged<LedgerTransaction>? onTransactionTap;
+  final ValueChanged<LedgerTransaction>? onTransactionLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    if (groups.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Container(
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: _ledgerCard,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            children: <Widget>[
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: _ledgerCardSoft,
+                child: Icon(
+                  Icons.receipt_long_rounded,
+                  color: _ledgerTextMuted.withValues(alpha: 0.88),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Chưa có giao dịch trong ${_periodEmptyLabel(selectedMonth)}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: _ledgerText,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Các giao dịch mới sẽ xuất hiện tại đây theo từng ngày.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _ledgerTextMuted, height: 1.5),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((BuildContext context, int index) {
+        return DailyTransactionCard(
+          group: groups[index],
+          onTransactionTap: onTransactionTap,
+          onTransactionLongPress: onTransactionLongPress,
+        );
+      }, childCount: groups.length),
+    );
+  }
+}
+
+class DailyTransactionCard extends StatelessWidget {
+  const DailyTransactionCard({
+    super.key,
+    required this.group,
+    this.onTransactionTap,
+    this.onTransactionLongPress,
+  });
+
+  final LedgerDayGroup group;
+  final ValueChanged<LedgerTransaction>? onTransactionTap;
+  final ValueChanged<LedgerTransaction>? onTransactionLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _ledgerCard,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              SizedBox(
+                width: 64,
+                child: Text(
+                  group.date.day.toString().padLeft(2, '0'),
+                  style: const TextStyle(
+                    color: _ledgerText,
+                    fontSize: 46,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        _formatWeekday(group.date),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _ledgerTextMuted,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'tháng ${group.date.month} ${group.date.year}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _ledgerTextMuted,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    _formatLedgerMoney(group.total, signed: true),
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      color: _ledgerText,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          for (int index = 0; index < group.transactions.length; index++)
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: index == group.transactions.length - 1 ? 0 : 24,
+              ),
+              child: LedgerTransactionItem(
+                transaction: group.transactions[index],
+                onTap: onTransactionTap == null
+                    ? null
+                    : () => onTransactionTap!(group.transactions[index]),
+                onLongPress: onTransactionLongPress == null
+                    ? null
+                    : () => onTransactionLongPress!(group.transactions[index]),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class LedgerTransactionItem extends StatelessWidget {
+  const LedgerTransactionItem({
+    super.key,
+    required this.transaction,
+    this.onTap,
+    this.onLongPress,
+  });
+
+  final LedgerTransaction transaction;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color amountColor = transaction.isIncome ? _ledgerBlue : _ledgerRed;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        borderRadius: BorderRadius.circular(18),
+        child: Row(
+          children: <Widget>[
+            TransactionCategoryIcon(transaction: transaction),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    transaction.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _ledgerText,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    transaction.note.isEmpty
+                        ? 'Không có ghi chú'
+                        : transaction.note,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _ledgerTextMuted,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 128),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  _formatLedgerMoney(transaction.signedAmount, signed: true),
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: amountColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-List<DateTime> _daysInMonth(DateTime month) {
-  final int totalDays = DateTime(month.year, month.month + 1, 0).day;
-  return List<DateTime>.generate(
-    totalDays,
-    (int index) => DateTime(month.year, month.month, index + 1),
+class TransactionCategoryIcon extends StatelessWidget {
+  const TransactionCategoryIcon({super.key, required this.transaction});
+
+  final LedgerTransaction transaction;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = _categoryColor(transaction);
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        CircleAvatar(
+          radius: 28,
+          backgroundColor: color.withValues(alpha: 0.16),
+          child: Icon(_categoryIcon(transaction), color: color, size: 24),
+        ),
+        Positioned(
+          right: -2,
+          bottom: -2,
+          child: Container(
+            width: 21,
+            height: 21,
+            decoration: BoxDecoration(
+              color: _ledgerGreen,
+              shape: BoxShape.circle,
+              border: Border.all(color: _ledgerCard, width: 3),
+            ),
+            child: const Icon(
+              Icons.account_balance_wallet_rounded,
+              color: _ledgerBackground,
+              size: 11,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class LedgerDayGroup {
+  const LedgerDayGroup({required this.date, required this.transactions});
+
+  final DateTime date;
+  final List<LedgerTransaction> transactions;
+
+  double get total => transactions.fold<double>(
+    0,
+    (double sum, LedgerTransaction transaction) =>
+        sum + transaction.signedAmount,
   );
 }
 
-List<TransactionModel> _filterByType(
+class LedgerTransaction {
+  const LedgerTransaction({
+    required this.id,
+    required this.title,
+    required this.note,
+    required this.amount,
+    required this.type,
+    required this.date,
+    required this.source,
+  });
+
+  final String id;
+  final String title;
+  final String note;
+  final double amount;
+  final String type;
+  final DateTime date;
+  final TransactionModel source;
+
+  bool get isIncome => type == AppConstants.incomeType;
+  double get signedAmount => isIncome ? amount : -amount;
+}
+
+class _LedgerIconButton extends StatelessWidget {
+  const _LedgerIconButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: _ledgerCard,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(18),
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(icon, color: _ledgerText, size: 22),
+        ),
+      ),
+    );
+  }
+}
+
+class _LedgerSearchMenuPill extends StatelessWidget {
+  const _LedgerSearchMenuPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: _ledgerCard,
+      borderRadius: BorderRadius.circular(999),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _LedgerPillIcon(icon: Icons.search_rounded, onPressed: () {}),
+          _LedgerPillIcon(icon: Icons.more_horiz_rounded, onPressed: () {}),
+        ],
+      ),
+    );
+  }
+}
+
+class _LedgerPillIcon extends StatelessWidget {
+  const _LedgerPillIcon({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(999),
+      child: SizedBox(
+        width: 42,
+        height: 48,
+        child: Icon(icon, color: _ledgerText, size: 22),
+      ),
+    );
+  }
+}
+
+class _LedgerSummaryRow extends StatelessWidget {
+  const _LedgerSummaryRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: _ledgerTextMuted,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: _ledgerText,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class LedgerPeriodTabData {
+  const LedgerPeriodTabData({
+    required this.label,
+    this.month,
+    this.enabled = true,
+  });
+
+  final String label;
+  final DateTime? month;
+  final bool enabled;
+}
+
+class _LedgerPeriodSummary {
+  const _LedgerPeriodSummary({
+    required this.startingBalance,
+    required this.endingBalance,
+    required this.periodTotal,
+  });
+
+  final double startingBalance;
+  final double endingBalance;
+  final double periodTotal;
+}
+
+List<TransactionModel> _transactionsForMonth(
   List<TransactionModel> transactions,
-  TransactionProvider provider,
+  DateTime month,
 ) {
-  if (provider.selectedFilter == AppConstants.filterAll) {
-    return transactions;
+  return transactions.where((TransactionModel transaction) {
+    return _isSameMonth(transaction.date, month);
+  }).toList()..sort(
+    (TransactionModel a, TransactionModel b) => b.date.compareTo(a.date),
+  );
+}
+
+List<LedgerDayGroup> _buildDayGroups(List<TransactionModel> transactions) {
+  final Map<DateTime, List<LedgerTransaction>> grouped =
+      <DateTime, List<LedgerTransaction>>{};
+
+  for (final TransactionModel transaction in transactions) {
+    final DateTime day = _dayStart(transaction.date);
+    grouped
+        .putIfAbsent(day, () => <LedgerTransaction>[])
+        .add(
+          LedgerTransaction(
+            id: transaction.id,
+            title: transaction.category,
+            note: transaction.note,
+            amount: transaction.amount,
+            type: transaction.type,
+            date: transaction.date,
+            source: transaction,
+          ),
+        );
   }
 
-  return transactions
-      .where(
-        (TransactionModel transaction) =>
-            transaction.type == provider.selectedFilter,
-      )
-      .toList();
-}
+  final List<DateTime> sortedDays = grouped.keys.toList()
+    ..sort((DateTime a, DateTime b) => b.compareTo(a));
 
-List<TransactionModel> _transactionsForDay(
-  List<TransactionModel> transactions,
-  DateTime day,
-) {
-  return transactions
-      .where(
-        (TransactionModel transaction) => _isSameDay(transaction.date, day),
-      )
-      .toList()
-    ..sort(
-      (TransactionModel a, TransactionModel b) => b.date.compareTo(a.date),
-    );
-}
-
-double _sumByType(List<TransactionModel> transactions, String type) {
-  return transactions
-      .where((TransactionModel transaction) => transaction.type == type)
-      .fold<double>(
-        0,
-        (double sum, TransactionModel transaction) => sum + transaction.amount,
+  return sortedDays.map((DateTime day) {
+    final List<LedgerTransaction> dayTransactions = grouped[day]!
+      ..sort(
+        (LedgerTransaction a, LedgerTransaction b) => b.date.compareTo(a.date),
       );
+    return LedgerDayGroup(date: day, transactions: dayTransactions);
+  }).toList();
 }
 
-bool _isSameDay(DateTime left, DateTime right) {
-  return left.year == right.year &&
-      left.month == right.month &&
-      left.day == right.day;
+_LedgerPeriodSummary _buildPeriodSummary(
+  List<TransactionModel> transactions,
+  DateTime selectedMonth,
+) {
+  final DateTime start = _monthStart(selectedMonth);
+  final DateTime end = DateTime(start.year, start.month + 1);
+  double startingBalance = 0;
+  double periodTotal = 0;
+
+  for (final TransactionModel transaction in transactions) {
+    final double signedAmount = transaction.type == AppConstants.incomeType
+        ? transaction.amount
+        : -transaction.amount;
+
+    if (transaction.date.isBefore(start)) {
+      startingBalance += signedAmount;
+      continue;
+    }
+
+    if (transaction.date.isBefore(end)) {
+      periodTotal += signedAmount;
+    }
+  }
+
+  return _LedgerPeriodSummary(
+    startingBalance: startingBalance,
+    endingBalance: startingBalance + periodTotal,
+    periodTotal: periodTotal,
+  );
+}
+
+List<LedgerPeriodTabData> _buildPeriodTabs(
+  List<TransactionModel> transactions,
+  DateTime selectedMonth,
+) {
+  final DateTime now = DateTime.now();
+  final DateTime currentMonth = _monthStart(now);
+  final DateTime previousMonth = DateTime(now.year, now.month - 1);
+  final Set<DateTime> olderMonths = <DateTime>{};
+
+  for (final TransactionModel transaction in transactions) {
+    final DateTime month = _monthStart(transaction.date);
+    if (month.isBefore(previousMonth)) {
+      olderMonths.add(month);
+    }
+  }
+
+  if (selectedMonth.isBefore(previousMonth)) {
+    olderMonths.add(selectedMonth);
+  }
+
+  final List<DateTime> sortedOlderMonths = olderMonths.toList()
+    ..sort((DateTime a, DateTime b) => b.compareTo(a));
+
+  return <LedgerPeriodTabData>[
+    LedgerPeriodTabData(label: '${currentMonth.year}', enabled: false),
+    LedgerPeriodTabData(label: 'THÁNG TRƯỚC', month: previousMonth),
+    LedgerPeriodTabData(label: 'THÁNG NÀY', month: currentMonth),
+    const LedgerPeriodTabData(label: 'TƯƠNG LAI', enabled: false),
+    ...sortedOlderMonths.map(
+      (DateTime month) => LedgerPeriodTabData(
+        label: 'THÁNG ${month.month} ${month.year}',
+        month: month,
+      ),
+    ),
+  ];
+}
+
+String _formatLedgerMoney(num amount, {bool signed = false}) {
+  final String formatted = _ledgerMoneyFormat.format(amount.abs());
+  if (!signed || amount == 0) {
+    return formatted;
+  }
+  return amount > 0 ? '+$formatted' : '-$formatted';
+}
+
+String _formatWeekday(DateTime date) {
+  final String weekday = DateFormat('EEEE', 'vi_VN').format(date);
+  if (weekday.isEmpty) {
+    return weekday;
+  }
+  return weekday[0].toUpperCase() + weekday.substring(1);
+}
+
+String _periodEmptyLabel(DateTime month) {
+  final DateTime now = DateTime.now();
+  final DateTime currentMonth = _monthStart(now);
+  final DateTime previousMonth = DateTime(now.year, now.month - 1);
+
+  if (_isSameMonth(month, currentMonth)) {
+    return 'tháng này';
+  }
+  if (_isSameMonth(month, previousMonth)) {
+    return 'tháng trước';
+  }
+  return 'tháng ${month.month} ${month.year}';
+}
+
+IconData _categoryIcon(LedgerTransaction transaction) {
+  if (transaction.isIncome) {
+    switch (transaction.title) {
+      case 'Lương':
+        return Icons.payments_rounded;
+      case 'Làm thêm':
+        return Icons.work_history_rounded;
+      case 'Học bổng':
+        return Icons.school_rounded;
+      case 'Tiền được cho':
+      case 'Tiền chuyển đến':
+        return Icons.call_received_rounded;
+      default:
+        return Icons.savings_rounded;
+    }
+  }
+
+  switch (transaction.title) {
+    case 'Ăn uống':
+      return Icons.restaurant_rounded;
+    case 'Đi lại':
+    case 'Di chuyển':
+      return Icons.directions_car_rounded;
+    case 'Mua sắm':
+      return Icons.shopping_bag_rounded;
+    case 'Học tập':
+      return Icons.menu_book_rounded;
+    case 'Giải trí':
+      return Icons.movie_creation_outlined;
+    case 'Hóa đơn':
+    case 'Hoá đơn tiện ích':
+      return Icons.receipt_long_rounded;
+    case 'Sức khỏe':
+    case 'Khám sức khoẻ':
+      return Icons.health_and_safety_rounded;
+    case 'Gia đình':
+      return Icons.family_restroom_rounded;
+    case 'Làm đẹp':
+      return Icons.spa_rounded;
+    default:
+      return Icons.category_rounded;
+  }
+}
+
+Color _categoryColor(LedgerTransaction transaction) {
+  if (transaction.isIncome) {
+    return _ledgerBlue;
+  }
+
+  switch (transaction.title) {
+    case 'Ăn uống':
+      return const Color(0xFFF59E0B);
+    case 'Đi lại':
+    case 'Di chuyển':
+      return const Color(0xFF22D3EE);
+    case 'Mua sắm':
+      return const Color(0xFFA78BFA);
+    case 'Học tập':
+      return const Color(0xFF38BDF8);
+    case 'Giải trí':
+      return const Color(0xFFF472B6);
+    case 'Hóa đơn':
+    case 'Hoá đơn tiện ích':
+      return const Color(0xFFCBD5E1);
+    case 'Sức khỏe':
+    case 'Khám sức khoẻ':
+      return const Color(0xFFFB7185);
+    default:
+      return _ledgerRed;
+  }
+}
+
+bool _isSameMonth(DateTime left, DateTime right) {
+  return left.year == right.year && left.month == right.month;
+}
+
+DateTime _monthStart(DateTime date) {
+  return DateTime(date.year, date.month);
 }
 
 DateTime _dayStart(DateTime date) {

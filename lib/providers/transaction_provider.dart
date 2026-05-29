@@ -81,6 +81,17 @@ class TransactionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setSelectedMonth(DateTime month) {
+    final DateTime normalizedMonth = _monthStart(month);
+    if (_isAfterCurrentMonth(normalizedMonth) ||
+        _isSameMonth(_selectedMonth, normalizedMonth)) {
+      return;
+    }
+
+    _selectedMonth = normalizedMonth;
+    notifyListeners();
+  }
+
   void goToPreviousMonth() {
     _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
     notifyListeners();
