@@ -16,8 +16,6 @@ const Color _budgetText = Color(0xFFFFFFFF);
 const Color _budgetTextMuted = Color(0xFFA1A1AA);
 const Color _budgetDivider = Color(0xFF34343A);
 const Color _budgetGreen = Color(0xFF34D399);
-const Color _budgetBlue = Color(0xFF2563EB);
-const Color _budgetBlueSoft = Color(0xFF60A5FA);
 const Color _budgetRed = Color(0xFFFB7185);
 
 final NumberFormat _budgetMoneyFormat = NumberFormat.currency(
@@ -112,7 +110,6 @@ class BudgetScreen extends StatelessWidget {
                             : categories.length,
                       ),
                     ),
-                    const SliverToBoxAdapter(child: DemoDataBanner()),
                     const SliverToBoxAdapter(child: SizedBox(height: 156)),
                   ],
                 );
@@ -125,6 +122,26 @@ class BudgetScreen extends StatelessWidget {
 
 class BudgetHeader extends StatelessWidget {
   const BudgetHeader({super.key});
+
+  void _showBudgetHelp(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Ngân sách tháng'),
+          content: const Text(
+            'Ngân sách là số tiền tối đa bạn dự định chi trong tháng hiện tại. App sẽ so sánh tổng chi với ngân sách để báo còn lại hoặc vượt mức.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Đã hiểu'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -148,11 +165,8 @@ class BudgetHeader extends StatelessWidget {
           const _BudgetScopePill(),
           const SizedBox(width: 10),
           _BudgetIconPill(
-            icons: const <IconData>[
-              Icons.more_horiz_rounded,
-              Icons.question_mark_rounded,
-            ],
-            onPressed: () {},
+            icons: const <IconData>[Icons.question_mark_rounded],
+            onPressed: () => _showBudgetHelp(context),
           ),
         ],
       ),
@@ -571,52 +585,6 @@ class BudgetCategoryProgressBar extends StatelessWidget {
   }
 }
 
-class DemoDataBanner extends StatelessWidget {
-  const DemoDataBanner({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 18, 16, 0),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _budgetBlue,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: <Widget>[
-          const Expanded(
-            child: Text(
-              'Dữ liệu mẫu - không phải là tài chính thật của bạn. Tắt đi để bắt đầu sử dụng MoneyLover.',
-              style: TextStyle(
-                color: Colors.white,
-                height: 1.35,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          TextButton(
-            onPressed: () {},
-            style: TextButton.styleFrom(
-              backgroundColor: _budgetBlueSoft,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            ),
-            child: const Text(
-              'Tắt',
-              style: TextStyle(fontWeight: FontWeight.w900),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class BudgetCategoryData {
   const BudgetCategoryData({
     required this.name,
@@ -696,23 +664,26 @@ class _BudgetScopePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: _budgetCard,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        onTap: () {},
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _budgetCard,
         borderRadius: BorderRadius.circular(999),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(Icons.public_rounded, color: _budgetText, size: 19),
-              SizedBox(width: 6),
-              Icon(Icons.keyboard_arrow_down_rounded, color: _budgetTextMuted),
-            ],
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(Icons.public_rounded, color: _budgetText, size: 19),
+          SizedBox(width: 6),
+          Text(
+            'Tổng',
+            style: TextStyle(
+              color: _budgetText,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

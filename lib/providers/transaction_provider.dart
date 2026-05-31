@@ -19,6 +19,8 @@ class TransactionProvider extends ChangeNotifier {
   bool _showSelectedMonthOnly = true;
   bool _isLoading = false;
   bool _isSubmitting = false;
+  bool _initialHistorySeedChecked = false;
+  bool _isSeedingInitialHistory = false;
   String? _errorMessage;
 
   List<TransactionModel> get transactions =>
@@ -39,6 +41,8 @@ class TransactionProvider extends ChangeNotifier {
 
     _subscription?.cancel();
     _activeUserId = userId;
+    _initialHistorySeedChecked = false;
+    _isSeedingInitialHistory = false;
 
     if (userId == null) {
       _transactions = <TransactionModel>[];
@@ -62,6 +66,7 @@ class TransactionProvider extends ChangeNotifier {
             _isLoading = false;
             _errorMessage = null;
             notifyListeners();
+            _seedInitialMayHistoryIfNeeded(items);
           },
           onError: (_) {
             _isLoading = false;
@@ -333,6 +338,50 @@ class TransactionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _seedInitialMayHistoryIfNeeded(
+    List<TransactionModel> items,
+  ) async {
+    final String? userId = _activeUserId;
+    if (userId == null ||
+        _initialHistorySeedChecked ||
+        _isSeedingInitialHistory) {
+      return;
+    }
+
+    _initialHistorySeedChecked = true;
+
+    try {
+      final bool alreadySeeded = await _firestoreService.hasInitialHistorySeed(
+        userId,
+      );
+      if (alreadySeeded) {
+        return;
+      }
+
+      final Set<String> seedIds = _may2026Transactions()
+          .map((TransactionModel transaction) => transaction.id)
+          .toSet();
+      final bool hasSeedTransactions = items.any(
+        (TransactionModel transaction) => seedIds.contains(transaction.id),
+      );
+      if (hasSeedTransactions) {
+        await _firestoreService.markInitialHistorySeeded(userId);
+        return;
+      }
+
+      _isSeedingInitialHistory = true;
+      await _firestoreService.upsertTransactions(
+        userId,
+        _may2026Transactions(),
+      );
+      await _firestoreService.markInitialHistorySeeded(userId);
+    } catch (_) {
+      // Không chặn app nếu dữ liệu lịch sử không nạp được.
+    } finally {
+      _isSeedingInitialHistory = false;
+    }
+  }
+
   double _sumByType(List<TransactionModel> items, String type) {
     return items
         .where((TransactionModel item) => item.type == type)
@@ -429,4 +478,336 @@ DateTime _monthStart(DateTime date) {
 
 DateTime _dayStart(DateTime date) {
   return DateTime(date.year, date.month, date.day);
+}
+
+List<TransactionModel> _may2026Transactions() {
+  final DateTime createdAt = DateTime(2026, 5, 1, 8);
+  final List<_TransactionSeed> items = <_TransactionSeed>[
+    _TransactionSeed(
+      '01a',
+      AppConstants.expenseType,
+      45000,
+      'Ăn uống',
+      'Bữa sáng',
+      1,
+    ),
+    _TransactionSeed(
+      '01b',
+      AppConstants.expenseType,
+      120000,
+      'Đi lại',
+      'Đổ xăng',
+      1,
+    ),
+    _TransactionSeed(
+      '02a',
+      AppConstants.expenseType,
+      85000,
+      'Ăn uống',
+      'Cà phê và ăn trưa',
+      2,
+    ),
+    _TransactionSeed(
+      '03a',
+      AppConstants.expenseType,
+      65000,
+      'Đi lại',
+      'Gửi xe và xe buýt',
+      3,
+    ),
+    _TransactionSeed(
+      '04a',
+      AppConstants.expenseType,
+      210000,
+      'Mua sắm',
+      'Đồ dùng cá nhân',
+      4,
+    ),
+    _TransactionSeed(
+      '05a',
+      AppConstants.incomeType,
+      6000000,
+      'Lương',
+      'Lương đầu tháng',
+      5,
+    ),
+    _TransactionSeed(
+      '05b',
+      AppConstants.expenseType,
+      350000,
+      'Học tập',
+      'Mua tài liệu',
+      5,
+    ),
+    _TransactionSeed(
+      '06a',
+      AppConstants.expenseType,
+      180000,
+      'Ăn uống',
+      'Ăn tối',
+      6,
+    ),
+    _TransactionSeed(
+      '07a',
+      AppConstants.expenseType,
+      750000,
+      'Hóa đơn',
+      'Tiền điện nước',
+      7,
+    ),
+    _TransactionSeed(
+      '08a',
+      AppConstants.expenseType,
+      260000,
+      'Đi lại',
+      'Taxi và gửi xe',
+      8,
+    ),
+    _TransactionSeed(
+      '09a',
+      AppConstants.expenseType,
+      145000,
+      'Ăn uống',
+      'Ăn trưa',
+      9,
+    ),
+    _TransactionSeed(
+      '10a',
+      AppConstants.incomeType,
+      900000,
+      'Làm thêm',
+      'Dạy kèm cuối tuần',
+      10,
+    ),
+    _TransactionSeed(
+      '10b',
+      AppConstants.expenseType,
+      420000,
+      'Mua sắm',
+      'Đồ dùng cá nhân',
+      10,
+    ),
+    _TransactionSeed(
+      '11a',
+      AppConstants.expenseType,
+      95000,
+      'Ăn uống',
+      'Ăn trưa',
+      11,
+    ),
+    _TransactionSeed(
+      '12a',
+      AppConstants.expenseType,
+      300000,
+      'Giải trí',
+      'Xem phim',
+      12,
+    ),
+    _TransactionSeed(
+      '13a',
+      AppConstants.expenseType,
+      150000,
+      'Sức khỏe',
+      'Mua thuốc',
+      13,
+    ),
+    _TransactionSeed(
+      '14a',
+      AppConstants.expenseType,
+      88000,
+      'Đi lại',
+      'Di chuyển trong ngày',
+      14,
+    ),
+    _TransactionSeed(
+      '15a',
+      AppConstants.incomeType,
+      1500000,
+      'Tiền được cho',
+      'Gia đình hỗ trợ',
+      15,
+    ),
+    _TransactionSeed(
+      '15b',
+      AppConstants.expenseType,
+      240000,
+      'Ăn uống',
+      'Ăn uống cùng bạn',
+      15,
+    ),
+    _TransactionSeed(
+      '16a',
+      AppConstants.expenseType,
+      680000,
+      'Mua sắm',
+      'Quần áo',
+      16,
+    ),
+    _TransactionSeed(
+      '17a',
+      AppConstants.expenseType,
+      110000,
+      'Đi lại',
+      'Xe buýt và gửi xe',
+      17,
+    ),
+    _TransactionSeed(
+      '18a',
+      AppConstants.expenseType,
+      220000,
+      'Ăn uống',
+      'Ăn cuối tuần',
+      18,
+    ),
+    _TransactionSeed(
+      '19a',
+      AppConstants.expenseType,
+      125000,
+      'Khác',
+      'Chi phí phát sinh',
+      19,
+    ),
+    _TransactionSeed(
+      '20a',
+      AppConstants.expenseType,
+      520000,
+      'Hóa đơn',
+      'Internet',
+      20,
+    ),
+    _TransactionSeed(
+      '21a',
+      AppConstants.incomeType,
+      700000,
+      'Làm thêm',
+      'Thiết kế bài tập',
+      21,
+    ),
+    _TransactionSeed(
+      '21b',
+      AppConstants.expenseType,
+      175000,
+      'Ăn uống',
+      'Ăn tối',
+      21,
+    ),
+    _TransactionSeed(
+      '22a',
+      AppConstants.expenseType,
+      390000,
+      'Học tập',
+      'Khóa học online',
+      22,
+    ),
+    _TransactionSeed(
+      '23a',
+      AppConstants.expenseType,
+      800000,
+      'Mua sắm',
+      'Phụ kiện điện thoại',
+      23,
+    ),
+    _TransactionSeed(
+      '24a',
+      AppConstants.expenseType,
+      210000,
+      'Ăn uống',
+      'Ăn uống cùng bạn',
+      24,
+    ),
+    _TransactionSeed(
+      '25a',
+      AppConstants.expenseType,
+      320000,
+      'Sức khỏe',
+      'Khám sức khỏe',
+      25,
+    ),
+    _TransactionSeed(
+      '26a',
+      AppConstants.expenseType,
+      140000,
+      'Đi lại',
+      'Di chuyển trong ngày',
+      26,
+    ),
+    _TransactionSeed(
+      '27a',
+      AppConstants.incomeType,
+      1200000,
+      'Học bổng',
+      'Hỗ trợ học tập',
+      27,
+    ),
+    _TransactionSeed(
+      '27b',
+      AppConstants.expenseType,
+      98000,
+      'Ăn uống',
+      'Ăn trưa',
+      27,
+    ),
+    _TransactionSeed(
+      '28a',
+      AppConstants.expenseType,
+      160000,
+      'Ăn uống',
+      'Ăn tối',
+      28,
+    ),
+    _TransactionSeed(
+      '29a',
+      AppConstants.expenseType,
+      270000,
+      'Giải trí',
+      'Cà phê cuối tuần',
+      29,
+    ),
+    _TransactionSeed(
+      '30a',
+      AppConstants.expenseType,
+      450000,
+      'Giải trí',
+      'Đi chơi cuối tuần',
+      30,
+    ),
+    _TransactionSeed(
+      '31a',
+      AppConstants.expenseType,
+      250000,
+      'Khác',
+      'Chi phí phát sinh',
+      31,
+    ),
+  ];
+
+  return items.map((_TransactionSeed item) {
+    return TransactionModel(
+      id: 'may_2026_${item.id}',
+      type: item.type,
+      amount: item.amount,
+      category: item.category,
+      note: item.note,
+      date: DateTime(2026, 5, item.day, 12),
+      createdAt: createdAt,
+    );
+  }).toList();
+}
+
+class _TransactionSeed {
+  const _TransactionSeed(
+    this.id,
+    this.type,
+    this.amount,
+    this.category,
+    this.note,
+    this.day,
+  );
+
+  final String id;
+  final String type;
+  final double amount;
+  final String category;
+  final String note;
+  final int day;
 }

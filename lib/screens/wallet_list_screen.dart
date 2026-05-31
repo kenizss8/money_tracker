@@ -4,7 +4,6 @@ import '../utils/currency_formatter.dart';
 
 const Color _background = Colors.black;
 const Color _card = Color(0xFF1C1C1E);
-const Color _softCard = Color(0xFF2C2C2E);
 const Color _text = Colors.white;
 const Color _muted = Color(0xFFA1A1AA);
 const Color _green = Color(0xFF34D399);
@@ -75,16 +74,7 @@ class WalletListScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                TextButton(
-                  onPressed: () {},
-                  child: const Text(
-                    'Sửa',
-                    style: TextStyle(
-                      color: _green,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
+                const SizedBox(width: 74),
               ],
             ),
             const SizedBox(height: 14),
@@ -116,8 +106,6 @@ class WalletListScreen extends StatelessWidget {
                   color: account.color,
                 ),
               ),
-            const SizedBox(height: 4),
-            const AddWalletButton(),
           ],
         ),
       ),
@@ -190,46 +178,6 @@ class WalletAccountCard extends StatelessWidget {
             const Icon(Icons.check_circle_rounded, color: _green, size: 22),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class AddWalletButton extends StatelessWidget {
-  const AddWalletButton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: _softCard,
-      borderRadius: BorderRadius.circular(22),
-      child: InkWell(
-        onTap: () {},
-        borderRadius: BorderRadius.circular(22),
-        child: const Padding(
-          padding: EdgeInsets.all(18),
-          child: Row(
-            children: <Widget>[
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: _card,
-                child: Icon(Icons.add_rounded, color: _green),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  'Thêm ví',
-                  style: TextStyle(
-                    color: _text,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: _muted),
-            ],
-          ),
-        ),
       ),
     );
   }

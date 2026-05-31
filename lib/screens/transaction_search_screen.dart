@@ -27,6 +27,7 @@ class TransactionSearchScreen extends StatefulWidget {
 class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
   final TextEditingController _controller = TextEditingController();
   String _keyword = '';
+  String _typeFilter = AppConstants.filterAll;
 
   @override
   void dispose() {
@@ -37,7 +38,11 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
   @override
   Widget build(BuildContext context) {
     final List<TransactionModel> results = widget.transactions
-        .where((TransactionModel item) => _matchesTransaction(item, _keyword))
+        .where(
+          (TransactionModel item) =>
+              _matchesType(item, _typeFilter) &&
+              _matchesTransaction(item, _keyword),
+        )
         .toList();
 
     return Scaffold(
@@ -71,7 +76,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () {},
+                    onPressed: _openFilterSheet,
                     icon: const Icon(Icons.tune_rounded, color: _text),
                   ),
                 ],
@@ -85,11 +90,108 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
                 });
               },
             ),
+            SearchFilterChip(typeFilter: _typeFilter),
             const SizedBox(height: 14),
             Expanded(
               child: SearchTransactionResultList(
                 keyword: _keyword,
                 transactions: results,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openFilterSheet() async {
+    final String? selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: _card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Text(
+                  'Lọc giao dịch',
+                  style: TextStyle(
+                    color: _text,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                for (final String value in <String>[
+                  AppConstants.filterAll,
+                  AppConstants.filterIncome,
+                  AppConstants.filterExpense,
+                ])
+                  ListTile(
+                    onTap: () => Navigator.of(context).pop(value),
+                    leading: Icon(
+                      value == _typeFilter
+                          ? Icons.check_circle_rounded
+                          : Icons.circle_outlined,
+                      color: value == _typeFilter ? _green : _muted,
+                    ),
+                    title: Text(
+                      AppConstants.filterLabel(value),
+                      style: const TextStyle(
+                        color: _text,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected == null || selected == _typeFilter || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _typeFilter = selected;
+    });
+  }
+}
+
+class SearchFilterChip extends StatelessWidget {
+  const SearchFilterChip({super.key, required this.typeFilter});
+
+  final String typeFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: _softCard,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(Icons.filter_alt_rounded, color: _green, size: 16),
+            const SizedBox(width: 6),
+            Text(
+              AppConstants.filterLabel(typeFilter),
+              style: const TextStyle(
+                color: _text,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ],
@@ -312,4 +414,8 @@ bool _matchesTransaction(TransactionModel transaction, String keyword) {
     typeLabel,
     dateLabel,
   ].any((String value) => value.toLowerCase().contains(normalizedKeyword));
+}
+
+bool _matchesType(TransactionModel transaction, String typeFilter) {
+  return typeFilter == AppConstants.filterAll || transaction.type == typeFilter;
 }

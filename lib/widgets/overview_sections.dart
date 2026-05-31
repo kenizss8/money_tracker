@@ -25,14 +25,14 @@ class OverviewHeader extends StatelessWidget {
     required this.balanceVisible,
     required this.onToggleBalanceVisibility,
     required this.onSearchPressed,
-    this.onNotificationPressed,
+    required this.onNotificationPressed,
   });
 
   final double balance;
   final bool balanceVisible;
   final VoidCallback onToggleBalanceVisibility;
   final VoidCallback onSearchPressed;
-  final VoidCallback? onNotificationPressed;
+  final VoidCallback onNotificationPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +96,7 @@ class OverviewHeader extends StatelessWidget {
               const SizedBox(width: 10),
               _HeaderIconButton(
                 icon: Icons.notifications_none_rounded,
-                onPressed: onNotificationPressed ?? () {},
+                onPressed: onNotificationPressed,
               ),
             ],
           ),
@@ -385,7 +385,7 @@ class ReportHeader extends StatelessWidget {
           ),
         ),
         TextButton(
-          onPressed: onPressed ?? () {},
+          onPressed: onPressed,
           child: Text(
             action,
             style: const TextStyle(
@@ -1196,9 +1196,9 @@ class _SimpleBarChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const double left = 8;
+    const double left = 22;
     const double right = 44;
-    const double bottom = 34;
+    const double bottom = 42;
     const double top = 16;
     final double chartHeight = size.height - top - bottom;
     final double chartRight = size.width - right;
@@ -1224,42 +1224,46 @@ class _SimpleBarChartPainter extends CustomPainter {
     );
 
     final double availableWidth = chartRight - left;
-    final double barWidth = math.min(72, availableWidth / 4);
-    final double firstX = left + availableWidth * 0.25 - barWidth / 2;
-    final double secondX = left + availableWidth * 0.70 - barWidth / 2;
+    final double barWidth = math.min(56, availableWidth / 4.2);
+    final double firstX = left + availableWidth * 0.28 - barWidth / 2;
+    final double secondX = left + availableWidth * 0.72 - barWidth / 2;
+    final double previousRatio = maxY <= 0
+        ? 0.0
+        : (previousValue / maxY).clamp(0.0, 1.0);
+    final double currentRatio = maxY <= 0
+        ? 0.0
+        : (currentValue / maxY).clamp(0.0, 1.0);
+    final double previousHeight = previousValue <= 0
+        ? 0
+        : math.max(8, chartHeight * previousRatio);
+    final double currentHeight = currentValue <= 0
+        ? 0
+        : math.max(8, chartHeight * currentRatio);
 
     _drawBar(
       canvas,
-      Rect.fromLTWH(
-        firstX,
-        baseY - chartHeight * (previousValue / maxY).clamp(0, 1),
-        barWidth,
-        chartHeight * (previousValue / maxY).clamp(0, 1),
-      ),
+      Rect.fromLTWH(firstX, baseY - previousHeight, barWidth, previousHeight),
       _overviewRed.withValues(alpha: 0.48),
     );
     _drawBar(
       canvas,
-      Rect.fromLTWH(
-        secondX,
-        baseY - chartHeight * (currentValue / maxY).clamp(0, 1),
-        barWidth,
-        chartHeight * (currentValue / maxY).clamp(0, 1),
-      ),
+      Rect.fromLTWH(secondX, baseY - currentHeight, barWidth, currentHeight),
       _overviewRed,
     );
 
-    _paintText(
+    _paintCenteredText(
       canvas,
       previousLabel,
-      Offset(firstX - 8, size.height - 20),
+      Offset(firstX + barWidth / 2, size.height - 24),
+      maxWidth: availableWidth * 0.40,
       color: _overviewTextMuted,
       fontSize: 11,
     );
-    _paintText(
+    _paintCenteredText(
       canvas,
       currentLabel,
-      Offset(secondX - 8, size.height - 20),
+      Offset(secondX + barWidth / 2, size.height - 24),
+      maxWidth: availableWidth * 0.40,
       color: _overviewText,
       fontSize: 11,
     );
@@ -1995,6 +1999,31 @@ void _paintText(
     textDirection: ui.TextDirection.ltr,
   )..layout();
   painter.paint(canvas, offset);
+}
+
+void _paintCenteredText(
+  Canvas canvas,
+  String text,
+  Offset center, {
+  required double maxWidth,
+  required Color color,
+  required double fontSize,
+}) {
+  final TextPainter painter = TextPainter(
+    text: TextSpan(
+      text: text,
+      style: TextStyle(
+        color: color,
+        fontSize: fontSize,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+    textAlign: TextAlign.center,
+    textDirection: ui.TextDirection.ltr,
+    maxLines: 1,
+    ellipsis: '…',
+  )..layout(maxWidth: maxWidth);
+  painter.paint(canvas, Offset(center.dx - painter.width / 2, center.dy));
 }
 
 Color _colorForCategory(String category) {

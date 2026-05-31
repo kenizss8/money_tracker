@@ -90,10 +90,7 @@ class MonthlyReportDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.calendar_month_rounded, color: _text),
-                ),
+                const SizedBox(width: 74),
               ],
             ),
             const SizedBox(height: 20),

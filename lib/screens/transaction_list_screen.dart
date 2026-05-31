@@ -6,6 +6,9 @@ import '../models/transaction_model.dart';
 import '../providers/transaction_provider.dart';
 import '../utils/app_constants.dart';
 import 'add_edit_transaction_screen.dart';
+import 'monthly_report_detail_screen.dart';
+import 'transaction_search_screen.dart';
+import 'wallet_list_screen.dart';
 
 const Color _ledgerBackground = Color(0xFF000000);
 const Color _ledgerCard = Color(0xFF1C1C1E);
@@ -25,6 +28,75 @@ final NumberFormat _ledgerMoneyFormat = NumberFormat.currency(
 
 class TransactionLedgerScreen extends StatelessWidget {
   const TransactionLedgerScreen({super.key});
+
+  Future<void> _openSearch(
+    BuildContext context,
+    List<TransactionModel> transactions,
+  ) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TransactionSearchScreen(transactions: transactions),
+      ),
+    );
+  }
+
+  Future<void> _openWalletList(
+    BuildContext context, {
+    required double balance,
+    required double monthIncome,
+    required double monthExpense,
+  }) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => WalletListScreen(
+          balance: balance,
+          monthIncome: monthIncome,
+          monthExpense: monthExpense,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openPeriodReport(
+    BuildContext context, {
+    required DateTime selectedMonth,
+    required List<TransactionModel> transactions,
+    required double balance,
+    required double monthIncome,
+    required double monthExpense,
+  }) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MonthlyReportDetailScreen(
+          selectedMonth: selectedMonth,
+          transactions: transactions,
+          balance: balance,
+          monthIncome: monthIncome,
+          monthExpense: monthExpense,
+        ),
+      ),
+    );
+  }
+
+  void _showLedgerHelp(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Sổ giao dịch'),
+          content: const Text(
+            'Mỗi giao dịch được nhóm theo ngày. Chạm vào giao dịch để sửa, nhấn giữ để xóa.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Đã hiểu'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Future<void> _openEditTransaction(
     BuildContext context,
@@ -117,6 +189,14 @@ class TransactionLedgerScreen extends StatelessWidget {
                   allTransactions,
                   selectedMonth,
                 );
+                final double monthIncome = _sumByType(
+                  periodTransactions,
+                  AppConstants.incomeType,
+                );
+                final double monthExpense = _sumByType(
+                  periodTransactions,
+                  AppConstants.expenseType,
+                );
                 final List<LedgerPeriodTabData> tabs = _buildPeriodTabs(
                   allTransactions,
                   selectedMonth,
@@ -124,7 +204,19 @@ class TransactionLedgerScreen extends StatelessWidget {
 
                 return CustomScrollView(
                   slivers: <Widget>[
-                    const SliverToBoxAdapter(child: LedgerTopBar()),
+                    SliverToBoxAdapter(
+                      child: LedgerTopBar(
+                        onHelpPressed: () => _showLedgerHelp(context),
+                        onAccountPressed: () => _openWalletList(
+                          context,
+                          balance: periodSummary.endingBalance,
+                          monthIncome: monthIncome,
+                          monthExpense: monthExpense,
+                        ),
+                        onSearchPressed: () =>
+                            _openSearch(context, allTransactions),
+                      ),
+                    ),
                     SliverToBoxAdapter(
                       child: LedgerBalanceSummary(
                         balance: periodSummary.endingBalance,
@@ -142,6 +234,14 @@ class TransactionLedgerScreen extends StatelessWidget {
                         startingBalance: periodSummary.startingBalance,
                         endingBalance: periodSummary.endingBalance,
                         periodTotal: periodSummary.periodTotal,
+                        onViewReport: () => _openPeriodReport(
+                          context,
+                          selectedMonth: selectedMonth,
+                          transactions: allTransactions,
+                          balance: periodSummary.endingBalance,
+                          monthIncome: monthIncome,
+                          monthExpense: monthExpense,
+                        ),
                       ),
                     ),
                     if (provider.isLoading && allTransactions.isEmpty)
@@ -178,7 +278,16 @@ class TransactionLedgerScreen extends StatelessWidget {
 }
 
 class LedgerTopBar extends StatelessWidget {
-  const LedgerTopBar({super.key});
+  const LedgerTopBar({
+    super.key,
+    required this.onHelpPressed,
+    required this.onAccountPressed,
+    required this.onSearchPressed,
+  });
+
+  final VoidCallback onHelpPressed;
+  final VoidCallback onAccountPressed;
+  final VoidCallback onSearchPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -188,17 +297,17 @@ class LedgerTopBar extends StatelessWidget {
         children: <Widget>[
           _LedgerIconButton(
             icon: Icons.question_mark_rounded,
-            onPressed: () {},
+            onPressed: onHelpPressed,
           ),
           Expanded(
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 180),
-                child: const AccountSelectorPill(),
+                child: AccountSelectorPill(onTap: onAccountPressed),
               ),
             ),
           ),
-          const _LedgerSearchMenuPill(),
+          _LedgerSearchMenuPill(onSearchPressed: onSearchPressed),
         ],
       ),
     );
@@ -206,7 +315,9 @@ class LedgerTopBar extends StatelessWidget {
 }
 
 class AccountSelectorPill extends StatelessWidget {
-  const AccountSelectorPill({super.key});
+  const AccountSelectorPill({super.key, required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -215,7 +326,7 @@ class AccountSelectorPill extends StatelessWidget {
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
-        onTap: () {},
+        onTap: onTap,
         child: const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
@@ -357,11 +468,13 @@ class LedgerPeriodSummaryCard extends StatelessWidget {
     required this.startingBalance,
     required this.endingBalance,
     required this.periodTotal,
+    required this.onViewReport,
   });
 
   final double startingBalance;
   final double endingBalance;
   final double periodTotal;
+  final VoidCallback onViewReport;
 
   @override
   Widget build(BuildContext context) {
@@ -416,7 +529,7 @@ class LedgerPeriodSummaryCard extends StatelessWidget {
           const SizedBox(height: 22),
           Center(
             child: TextButton(
-              onPressed: () {},
+              onPressed: onViewReport,
               child: const Text(
                 'Xem báo cáo cho giai đoạn này',
                 textAlign: TextAlign.center,
@@ -794,7 +907,9 @@ class _LedgerIconButton extends StatelessWidget {
 }
 
 class _LedgerSearchMenuPill extends StatelessWidget {
-  const _LedgerSearchMenuPill();
+  const _LedgerSearchMenuPill({required this.onSearchPressed});
+
+  final VoidCallback onSearchPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -804,8 +919,10 @@ class _LedgerSearchMenuPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          _LedgerPillIcon(icon: Icons.search_rounded, onPressed: () {}),
-          _LedgerPillIcon(icon: Icons.more_horiz_rounded, onPressed: () {}),
+          _LedgerPillIcon(
+            icon: Icons.search_rounded,
+            onPressed: onSearchPressed,
+          ),
         ],
       ),
     );
@@ -970,6 +1087,15 @@ _LedgerPeriodSummary _buildPeriodSummary(
     endingBalance: startingBalance + periodTotal,
     periodTotal: periodTotal,
   );
+}
+
+double _sumByType(List<TransactionModel> transactions, String type) {
+  return transactions
+      .where((TransactionModel transaction) => transaction.type == type)
+      .fold<double>(
+        0,
+        (double sum, TransactionModel transaction) => sum + transaction.amount,
+      );
 }
 
 List<LedgerPeriodTabData> _buildPeriodTabs(

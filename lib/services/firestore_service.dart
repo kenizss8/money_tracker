@@ -41,6 +41,20 @@ class FirestoreService {
     return UserModel.fromMap(data);
   }
 
+  Future<bool> hasInitialHistorySeed(String uid) async {
+    final DocumentSnapshot<Map<String, dynamic>> snapshot =
+        await _usersCollection.doc(uid).get();
+    final Map<String, dynamic>? data = snapshot.data();
+    return data?['initialMay2026HistorySeeded'] == true;
+  }
+
+  Future<void> markInitialHistorySeeded(String uid) {
+    return _usersCollection.doc(uid).set(<String, dynamic>{
+      'initialMay2026HistorySeeded': true,
+      'initialMay2026HistorySeededAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   Stream<List<TransactionModel>> streamTransactions(String uid) {
     return _transactionsCollection(uid)
         .orderBy('date', descending: true)
@@ -66,6 +80,26 @@ class FirestoreService {
           ..removeWhere((String key, dynamic value) => value == null);
 
     await doc.set(payload);
+  }
+
+  Future<void> upsertTransactions(
+    String uid,
+    List<TransactionModel> transactions,
+  ) async {
+    final WriteBatch batch = _firestore.batch();
+
+    for (final TransactionModel transaction in transactions) {
+      final DocumentReference<Map<String, dynamic>> doc = transaction.id.isEmpty
+          ? _transactionsCollection(uid).doc()
+          : _transactionsCollection(uid).doc(transaction.id);
+      final Map<String, dynamic> payload =
+          transaction.copyWith(id: doc.id, updatedAt: DateTime.now()).toMap()
+            ..removeWhere((String key, dynamic value) => value == null);
+
+      batch.set(doc, payload, SetOptions(merge: true));
+    }
+
+    await batch.commit();
   }
 
   Future<void> updateTransaction(
